@@ -1,0 +1,34 @@
+/* 🌙 DARK MODE */
+body.dark {
+  background-color: #0f172a;
+  color: white;
+}
+
+/* ☀️ LIGHT MODE */
+body.light {
+  background-color: #f9c17c;   /* soft orange (NOT white) */
+  color: #1e293b;              /* dark text */
+}
+
+/* CARDS */
+.card {
+  padding: 20px;
+  border-radius: 12px;
+  transition: 0.3s;
+}
+
+/* DARK */
+body.dark .card {
+  background: #1e293b;
+}
+
+/* LIGHT */
+body.light .card {
+  background: #ffedd5;         /* warm card */
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+/* NAVBAR BORDER */
+body.light .navbar {
+  border-bottom: 1px solid #fdba74;
+}
