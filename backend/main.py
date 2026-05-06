@@ -6,6 +6,16 @@ import random
 
 from datetime import datetime, timedelta
 from routes.analytics import router as analytics_router
+from pydantic import BaseModel
+
+
+class SupportMessage(BaseModel):
+    name: str
+    email: str
+    phone: str
+    subject: str
+    message: str
+
 
 app = FastAPI(title="Smart Meter Backend")
 
@@ -25,7 +35,7 @@ app.add_middleware(
 # ===============================
 db_pool = pooling.MySQLConnectionPool(
     pool_name="smart_meter_pool",
-    pool_size=5,
+    pool_size=20,
     host="localhost",
     user="root",
     password="Rageaman@0909",
@@ -179,25 +189,38 @@ def add_energy_data(meter_id: str):
 
 @app.get("/meters/{meter_id}/data")
 def get_energy_data(meter_id: str):
-    conn, cursor = get_conn_cursor()
 
-    cursor.execute("""
-        SELECT 
-            DATE_FORMAT(timestamp, '%H:00') AS hour,
-            ROUND(SUM(energy_usage), 2) AS `usage`
-        FROM energy_data
-        WHERE meter_id = %s
-        GROUP BY DATE_FORMAT(timestamp, '%H')
-        ORDER BY CAST(DATE_FORMAT(timestamp, '%H') AS UNSIGNED)
-        LIMIT 24
-    """, (meter_id,))
+    conn = None
+    cursor = None
 
-    data = cursor.fetchall()
+    try:
+        conn, cursor = get_conn_cursor()
 
-    cursor.close()
-    conn.close()
+        cursor.execute("""
+            SELECT 
+                DATE_FORMAT(timestamp, '%H:00') AS hour,
+                ROUND(AVG(energy_usage), 2) AS `usage`
+            FROM energy_data
+            WHERE meter_id = %s
+            AND timestamp >= NOW() - INTERVAL 24 HOUR
+            GROUP BY DATE_FORMAT(timestamp, '%H:00')
+            ORDER BY DATE_FORMAT(timestamp, '%H:00')
+        """, (meter_id,))
 
-    return data
+        data = cursor.fetchall()
+
+        return data
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if conn:
+            conn.close()
+
 
 # ===============================
 # 🚨 EVENTS
@@ -437,3 +460,25 @@ def login(password: str):
 # 📊 ANALYTICS ROUTER
 # ===============================
 app.include_router(analytics_router, prefix="/analytics", tags=["Analytics"])
+
+
+@app.post("/support")
+def save_support(msg: SupportMessage):
+    conn, cursor = get_conn_cursor()
+
+    try:
+        cursor.execute("""
+            INSERT INTO support_messages (name, email, phone, subject, message)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (msg.name, msg.email, msg.phone, msg.subject, msg.message))
+
+        conn.commit()
+        return {"status": "success"}
+
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        cursor.close()
+        conn.close()
